@@ -762,7 +762,7 @@ void Call_Concluder::conclude_call(Call *call, System *sys, Config config) {
   }
 
   // Clean up after encrypted calls without keys.
-  if (call_info.encrypted) {
+  if (call_info.encrypted && sys->get_encryption_keys().empty()) {
     if (call_info.transmission_list.size() > 0 || call_info.min_transmissions_removed > 0) {
       int result = create_call_json(call_info);
       if (result < 0) {

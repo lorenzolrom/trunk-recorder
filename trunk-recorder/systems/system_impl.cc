@@ -1,6 +1,7 @@
 #include "system_impl.h"
 #include "system.h"
 #include <fstream>
+#include <cctype>
 #include "../config.h"
 
 System *System::make(int sys_num) {
@@ -635,9 +636,32 @@ void System_impl::load_encryption_keys() {
       uint16_t keyid = (uint16_t)std::stoul(keyid_str, nullptr, 16);
       uint8_t algid = (uint8_t)std::stoul(algid_str, nullptr, 16);
 
+      std::string normalized_key;
+      for (size_t i = 0; i < key_str.length(); i++) {
+        unsigned char c = static_cast<unsigned char>(key_str[i]);
+        if (std::isspace(c) || key_str[i] == ':' || key_str[i] == '-' || key_str[i] == '_') {
+          continue;
+        }
+        if (key_str[i] == '0' && (i + 1) < key_str.length() && (key_str[i + 1] == 'x' || key_str[i + 1] == 'X')) {
+          i++;
+          continue;
+        }
+        if (!std::isxdigit(c)) {
+          BOOST_LOG_TRIVIAL(warning) << "Skipping encryption key entry with invalid hex character in key";
+          normalized_key.clear();
+          break;
+        }
+        normalized_key.push_back(key_str[i]);
+      }
+
+      if (normalized_key.empty() || (normalized_key.length() % 2) != 0) {
+        BOOST_LOG_TRIVIAL(warning) << "Skipping encryption key entry with invalid key length";
+        continue;
+      }
+
       std::vector<uint8_t> key_bytes;
-      for (size_t i = 0; i < key_str.length(); i += 2) {
-        key_bytes.push_back((uint8_t)std::stoul(key_str.substr(i, 2), nullptr, 16));
+      for (size_t i = 0; i < normalized_key.length(); i += 2) {
+        key_bytes.push_back((uint8_t)std::stoul(normalized_key.substr(i, 2), nullptr, 16));
       }
 
       d_encryption_keys.emplace_back(keyid, algid, key_bytes);

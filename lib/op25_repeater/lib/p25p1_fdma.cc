@@ -893,7 +893,7 @@ namespace gr {
 					sprintf(s, "%03x %03x %03x %03x %03x %03x %03x %03x\n", u[0], u[1], u[2], u[3], u[4], u[5], u[6], u[7]);
 
                     if (d_do_audio_output) {
-                        if ( !encrypted()) {
+                        if (audio_valid) {
                             // This is the Vocoder that OP25 currently uses.
 
                             if (d_soft_vocoder) {
