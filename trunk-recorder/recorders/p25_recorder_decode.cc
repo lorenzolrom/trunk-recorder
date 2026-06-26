@@ -312,7 +312,17 @@ void p25_recorder_decode::check_message_queue() {
       try {
         auto j = nlohmann::json::parse(msg_str);
         
-        if (j.contains("type")) {
+        if (j.contains("encrypted")) {
+          bool encrypted = j["encrypted"].get<int>() != 0;
+          d_call->set_encrypted(encrypted);
+
+          if (encrypted) {
+            int algid = j.value("algid", 0);
+            int keyid = j.value("keyid", 0);
+            BOOST_LOG_TRIVIAL(debug) << "P25 encryption status: encrypted=1 algid=0x"
+                                     << std::hex << algid << " keyid=0x" << keyid << std::dec;
+          }
+        } else if (j.contains("type")) {
           std::string json_msg_type = j["type"];
           
           if (json_msg_type == "motorola_alias_p1" || json_msg_type == "motorola_alias_p2" ||
