@@ -295,6 +295,16 @@ p25_frame_assembler_impl::general_work (int noutput_items,
     void p25_frame_assembler_impl::crypt_reset() {
       p1fdma.crypt_reset();
       p2tdma.crypt_reset();
+      // trunk-recorder reuses recorder objects (and therefore this block) across
+      // calls, but never otherwise invokes call_end(). Without this, p2tdma's
+      // burst_id/ess_mi carry over from whatever call last used this recorder;
+      // burst_id only self-corrects when the new call's true position is *ahead*
+      // of the stale value, so roughly half the time it stays wrong for the
+      // whole call, decrypting every codeword against the wrong keystream slice.
+      // Resetting here (called once per call, right before crypt_key() reloads
+      // the keys) guarantees a clean burst_id/ess sync on every call.
+      p1fdma.call_end();
+      p2tdma.call_end();
     }
 
     void p25_frame_assembler_impl::set_phase2_tdma(bool p) {
