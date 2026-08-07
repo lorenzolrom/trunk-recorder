@@ -111,7 +111,6 @@ private:
 	uint16_t next_keyid;
 	uint8_t next_algid;
 	uint8_t next_mi[9] = {0};
-	bool next_ess_valid = false; // whether the most recent ESS-A RS decode succeeded
 
 	p25p2_framer p2framer;
     p25_crypt_algs crypt_algs;

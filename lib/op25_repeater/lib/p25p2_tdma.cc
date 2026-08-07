@@ -724,7 +724,10 @@ void p25p2_tdma::handle_voice_frame(const uint8_t dibits[], int slot, int voice_
 
 	// Pass encrypted traffic through the decryption algorithms
 	if (encrypted()) {
-		switch (slot) {
+		// use burst_id (the corrected, canonical position within the superframe)
+		// rather than the caller's current_slot snapshot, which can go stale
+		// relative to burst_id after a missed-frame correction.
+		switch (burst_id) {
 			case 0:
 				fr_type = FT_4V_0;
 				break;
@@ -886,14 +889,9 @@ int p25p2_tdma::handle_packet(uint8_t dibits[], const uint64_t fs)
 			handle_voice_frame(&xored_burst[133], current_slot, 3);
 		} else /* if (burst_type == 6) */ {
 			// promote next set of encryption parameters AFTER we get the full ESS & process the 2V frame
-			// if new ess was not received correctly, compute the next ess_mi from the last one
-			if (next_ess_valid) {
-				ess_algid = next_algid;
-				ess_keyid = next_keyid;
-				memcpy(ess_mi, next_mi, sizeof(ess_mi));
-			} else {
-				p25_crypt_algs::cycle_p25_mi(ess_mi);
-			}
+			ess_algid = next_algid;
+			ess_keyid = next_keyid;
+			memcpy(ess_mi, next_mi, sizeof(ess_mi));
 			if (encrypted()) {
 				crypt_algs.prepare(ess_algid, ess_keyid, PT_P25_PHASE2, ess_mi);
 			}
@@ -946,11 +944,11 @@ void p25p2_tdma::handle_4V2V_ess(const uint8_t dibits[])
 		}
 
 		ec = rs28.decode(ESS_B, ESS_A);
-		next_ess_valid = (ec >= 0) && (ec <= 14); // upper limit 14 corrections
 
-		if (next_ess_valid) {
+		if ((ec >= 0) && (ec <= 14)) { // upper limit 14 corrections
+			// if FEC decode is good, save next set of received ess info
 			next_algid = (ESS_B[0] << 2) + (ESS_B[1] >> 4);
-			next_keyid = ((ESS_B[1] & 15) << 12) + (ESS_B[2] << 6) + ESS_B[3]; 
+			next_keyid = ((ESS_B[1] & 15) << 12) + (ESS_B[2] << 6) + ESS_B[3];
 
 			j = 0;
 			for (i = 0; i < 9;) {
@@ -959,8 +957,14 @@ void p25p2_tdma::handle_4V2V_ess(const uint8_t dibits[])
 				next_mi[i++] = (uint8_t) ((ESS_B[j+6] & 0x03) << 6) +  ESS_B[j+7];
 				j += 4;
 			}
+		} else {
+			// if FEC decode was bad, use the old ess info and calculate the next ess_mi
+			next_algid = ess_algid;
+			next_keyid = ess_keyid;
+			memcpy(next_mi, ess_mi, sizeof(ess_mi));
+			p25_crypt_algs::cycle_p25_mi(next_mi);
 		}
-	}     
+	}
 
 	if (d_debug >= 10 && burst_id == 4) {
 		fprintf(stderr, "ESS: algid=%x, keyid=%x, mi=%02x %02x %02x %02x %02x %02x %02x %02x %02x, rs_errs=%d\n",
