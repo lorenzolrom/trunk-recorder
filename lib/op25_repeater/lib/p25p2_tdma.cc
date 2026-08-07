@@ -886,9 +886,14 @@ int p25p2_tdma::handle_packet(uint8_t dibits[], const uint64_t fs)
 			handle_voice_frame(&xored_burst[133], current_slot, 3);
 		} else /* if (burst_type == 6) */ {
 			// promote next set of encryption parameters AFTER we get the full ESS & process the 2V frame
-			ess_algid = next_algid;
-			ess_keyid = next_keyid;
-			memcpy(ess_mi, next_mi, sizeof(ess_mi));
+			// if new ess was not received correctly, compute the next ess_mi from the last one
+			if (next_ess_valid) {
+				ess_algid = next_algid;
+				ess_keyid = next_keyid;
+				memcpy(ess_mi, next_mi, sizeof(ess_mi));
+			} else {
+				p25_crypt_algs::cycle_p25_mi(ess_mi);
+			}
 			if (encrypted()) {
 				crypt_algs.prepare(ess_algid, ess_keyid, PT_P25_PHASE2, ess_mi);
 			}
@@ -941,8 +946,9 @@ void p25p2_tdma::handle_4V2V_ess(const uint8_t dibits[])
 		}
 
 		ec = rs28.decode(ESS_B, ESS_A);
+		next_ess_valid = (ec >= 0) && (ec <= 14); // upper limit 14 corrections
 
-		if ((ec >= 0) && (ec <= 14)) { // upper limit 14 corrections
+		if (next_ess_valid) {
 			next_algid = (ESS_B[0] << 2) + (ESS_B[1] >> 4);
 			next_keyid = ((ESS_B[1] & 15) << 12) + (ESS_B[2] << 6) + ESS_B[3]; 
 
